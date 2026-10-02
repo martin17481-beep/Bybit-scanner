@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bybit Live Crypto Scanner</title>
+    <style>
+        :root {
+            --bg-color: #131722;
+            --card-bg: #1c2030;
+            --text-color: #ffffff;
+            --text-muted: #848e9c;
+            --bybit-orange: #f0a500;
+            --up-green: #0ecb81;
+            --down-red: #f6465d;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 15px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #2a2e3d;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 20px;
+            color: var(--bybit-orange);
+        }
+
+        .status {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .scanner-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .scanner-table th, .scanner-table td {
+            padding: 12px 10px;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .scanner-table th {
+            background-color: #24293e;
+            color: var(--text-muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .scanner-table tr {
+            border-bottom: 1px solid #2a2e3d;
+        }
+
+        .pair { 
+            font-weight: bold; 
+        }
+
+        .price { 
+            font-family: monospace; 
+        }
+
+        .change { 
+            font-weight: 500; 
+        }
+        .change.pos { color: var(--up-green); }
+        .change.neg { color: var(--down-red); }
+
+        .volume { 
+            color: var(--text-muted); 
+            font-family: monospace; 
+            font-size: 12px; 
+        }
+
+        .loader { 
+            text-align: center; 
+            padding: 40px; 
+            color: var(--text-muted); 
+            font-size: 16px; 
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Bybit Live Scanner</h1>
+        <div class="status" id="update-status">Verbinde zur API...</div>
+    </header>
+
+    <table class="scanner-table" id="scanner-table" style="display: none;">
+        <thead>
+            <tr>
+                <th>Paar</th>
+                <th>Preis</th>
+                <th>24h %</th>
+                <th>Volumen</th>
+            </tr>
+        </thead>
+        <tbody id="ticker-body"></tbody>
+    </table>
+
+    <div id="loader" class="loader">Verbindung zur Bybit API wird aufgebaut...</div>
+</div>
+
+<script>
+    const BYBIT_API_URL = 'https://bybit.com';
+
+    async function fetchBybitData() {
+        try {
+            const response = await fetch(BYBIT_API_URL);
+            if (!response.ok) throw new Error('Netzwerkfehler beim Abruf');
+            
+            const data = await response.json();
+
+            if (data.retCode === 0 && data.result && data.result.list) {
+                renderTable(data.result.list);
+            } else {
+                document.getElementById('update-status').innerText = 'API-Fehler von Bybit.';
+            }
+        } catch (error) {
+            console.error('Fehler:', error);
+            document.getElementById('update-status').innerText = 'Verbindungsfehler.';
+        }
+    }
+
+    function renderTable(tickers) {
+        const tbody = document.getElementById('ticker-body');
+        tbody.innerHTML = '';
+
+        let filtered = tickers.filter(t => t.symbol.endsWith('USDT'));
+
+        filtered.sort((a, b) => parseFloat(b.price24hPcnt) - parseFloat(a.price24hPcnt));
+
+        filtered.slice(0, 30).forEach(ticker => {
+            const changePcnt = parseFloat(ticker.price24hPcnt).toFixed(2);
+            const isPositive = parseFloat(changePcnt) >= 0;
+            const formattedVol = parseFloat(ticker.turnover24h).toLocaleString('de-DE', { maximumFractionDigits: 0 });
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="pair">${ticker.symbol.replace('USDT', '/USDT')}</td>
+                <td class="price">${parseFloat(ticker.lastPrice).toString()}</td>
+                <td class="change ${isPositive ? 'pos' : 'neg'}">${isPositive ? '+' : ''}${changePcnt}%</td>
+                <td class="volume">${formattedVol} $</td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('scanner-table').style.display = 'table';
+        
+        const now = new Date();
+        document.getElementById('update-status').innerText = `Live: ${now.toLocaleTimeString()}`;
+    }
+
+    fetchBybitData();
+    setInterval(fetchBybitData, 10000);
+</script>
+
+</body>
+</html>
